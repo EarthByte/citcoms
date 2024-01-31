@@ -1433,9 +1433,12 @@ def make_flat_slab_age_depth_xyz( master, flat_slab_depth_grd,
     # mask of flat slab
     grid = grid_dir + '/flat_slab_mask.grd'
     rm_list.append( grid )
-    cmd = flat_slab_polygon_file + ' -F -m -I' + grd_res + ' -R' + R
+
+    # due to a bug with gmt, grdmask needs to be done with the -Rd flag then shifted to -Rg with grdedit
+    cmd = flat_slab_polygon_file + ' -F -m -I' + grd_res + ' -Rd'
     cmd += ' -NNaN/0/1'
     Core_GMT.callgmt( 'grdmask', cmd, '', '', '-G' + grid )
+    Core_GMT.callgmt( 'grdedit', grid + ' -S -Rg')
 
     out_list = []
     for ifile in [ afile_1, flat_slab_depth_grd ]:
