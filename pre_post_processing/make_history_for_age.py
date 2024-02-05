@@ -893,7 +893,6 @@ def no_assimilation_regions( master_d, age_grid, grd_res ):
         # turn off no assimilation regions
         print( now(), 'WARNING: file exists but there are not enough points to make a polygon: %(no_ass_file)s' % vars())
         print( now(), 'WARNING: aborting no assimilation regions')
-    # End of Jono's edit (except the below 'elif' has been changed from originally being 'if')
 
     elif os.path.exists( no_ass_file ):
         no_ass_file2 = preprocess_gplates_line_data( master_d, no_ass_file )
@@ -901,19 +900,22 @@ def no_assimilation_regions( master_d, age_grid, grd_res ):
         no_ass_mask1 = grid_dir + '/no_ass_mask1.grd'
         rm_list.append( no_ass_mask1 )
         cmd = no_ass_file2
-        cmd += ' -R%(R)s -I%(grd_res)g -m -F' % vars()
+        cmd += ' -Rd -I%(grd_res)g -m -F' % vars() #'-Rd' is to get around grdmask bug- changed back to original region with grdedit below
         cmd += ' -N0/NaN/NaN' % vars()
         callgmt( 'grdmask', cmd, '', '', '-G' + no_ass_mask1 )
+        callgmt( 'grdedit', no_ass_mask1 + ' -S -R%(R)s' % vars())
 
         if padding: 
             # extra padding around edge of polygon
             no_ass_mask2 = grid_dir + '/no_ass_mask2.grd'
             rm_list.append( no_ass_mask2 )
             cmd = no_ass_file2
-            cmd += ' -R%(R)s -I%(grd_res)g -m -F' % vars()
+            # cmd += ' -R%(R)s -I%(grd_res)g -m -F' % vars()
+            cmd += ' -Rd -I%(grd_res)g -m -F' % vars() #'-Rd' is to get around grdmask bug- changed back to original region with grdedit below
             cmd += ' -N0/NaN/NaN' % vars()
             cmd += ' -S%(padding)fk' % vars()
             callgmt( 'grdmask', cmd, '', '', '-G' + no_ass_mask2 )
+            callgmt( 'grdedit', no_ass_mask2 + ' -S -R%(R)s' % vars())
             args = '%(age_grid)s %(no_ass_mask2)s %(no_ass_mask1)s OR OR' % vars()
             callgmt( 'grdmath', args, '', '=', age_grid )
         else:
