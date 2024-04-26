@@ -26,7 +26,7 @@ import numpy as np
 import Core_Util
 from Core_Util import now
 
-import Core_GMT
+import Core_isoGMT
 
 #=====================================================================
 #=====================================================================
@@ -1748,7 +1748,7 @@ def dimensionalize_grid(pid_file, field_name, in_grid, out_grid) :
 
     # now do some grid math with gmt 
     args = '%(in_grid)s %(coef)f MUL %(const)s ADD' % vars()
-    Core_GMT.callgmt( 'grdmath', args, '', '=', out_grid )
+    Core_isoGMT.callgmt( 'grdmath', args, '', '=', out_grid )
 #=====================================================================
 #=====================================================================
 def populate_field_to_dimensional_map_from_pid( pid_file ): 
