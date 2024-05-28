@@ -511,6 +511,60 @@ def main():
                 else:
                     print(f'{now()} Spherical interpolator worked succesfully')
 
+                # Produce a grid showing deviation from average
+                if control_d[s].get('deviation'):
+                    print(field_slice)
+                    ave = np.median(field_slice)
+                    # std = np.std(field_slice)
+                    mean = np.mean(field_slice)
+                    std = np.sqrt(np.square((field_slice - mean)))
+                    print(std)
+
+                    field_slice_dev = field_slice - ave
+                    # field_slice_dev = std
+                    print(field_slice_dev)
+
+                    xyz_filename_dev = 'deviation_' + datafile + '_' + field_name + '_t' + str(age_Ma_storing)+ '_' + str(depth) + '.xyz'
+                    # create the xyz data
+                    xyz_data_dev = np.column_stack( (lon, lat, field_slice_dev) )
+                    np.savetxt( xyz_filename_dev, xyz_data_dev, fmt='%f %f %f' )
+
+                    # create the median file 
+                    median_xyz_filename_dev = xyz_filename_dev.rstrip('xyz') + 'median.xyz'
+
+                    cmd = xyz_filename_dev + ' -I' + str(blockmedian_I) + ' -R' + grid_R
+                    Core_GMT.callgmt( 'blockmedian', cmd, '', '>', median_xyz_filename_dev )
+                    
+                    # create the grid
+                    grid_filename_dev = xyz_filename_dev.rstrip('xyz') + 'nc'
+
+                    cmd = median_xyz_filename_dev + ' -I' + str(surface_I) + ' -R' + grid_R 
+                    if 'Ll' in control_d[s]:
+                        cmd += ' -Ll' + str(control_d[s]['Ll'])
+                    if 'Lu' in control_d[s]:
+                        cmd += ' -Lu' + str(control_d[s]['Lu'])
+                    if 'T' in control_d[s]:
+                        cmd += ' -T' + str(control_d[s]['T'])
+
+                    #opt_a = 
+                    try:
+                        print(f'{now()} Trying the spherical interpolator')
+                        Core_GMT.callgmt( 'sphinterpolate', cmd, '', '', ' -G' + grid_filename_dev )
+                    except:
+                        print(f'{now()} Spherical interpolator unsuccesful. Using gmt surface instead. This may cause some issues around the poles')
+                        Core_GMT.callgmt( 'surface', cmd, '', '', ' -G' + grid_filename_dev )
+                    else:
+                        print(f'{now()} Spherical interpolator worked succesfully')
+
+                    dev_dir_name = f'{field_name}_deviation'
+                    dev_grid_dir=f'{datafile}/{dev_dir_name}/{age_Ma_storing}'
+                    os.makedirs(f'{dev_grid_dir}', exist_ok=True)
+
+                    if os.path.isfile(f'{dev_grid_dir}/{grid_filename_dev}'):
+                        os.remove(f'{dev_grid_dir}/{grid_filename_dev}')
+                    shutil.move(grid_filename_dev, f'{dev_grid_dir}')
+
+
                 ### Jono- uncomment below to produce plots
                 if debug:
                     # label the variables
@@ -526,13 +580,6 @@ def main():
                     Core_Citcom.dimensionalize_grid(pid_file, field_name, grid_filename, dim_grid_name)
 
                     dim_dir_name = f'{field_name}_dimensional'
-
-                    # # Add dimensionalised grid to its own folder
-                    # os.makedirs(f'{dim_dir_name}/{age_Ma}', exist_ok=True)
-
-                    # if os.path.isfile(f'{dim_dir_name}/{age_Ma}/{dim_grid_name}'):
-                    #     os.remove(f'{dim_dir_name}/{age_Ma}/{dim_grid_name}')
-                    # shutil.move(dim_grid_name, f'{dim_dir_name}/{age_Ma}')
 
                 #     # FIXME: for dynamic topo remove  mean 
                 #     # grdinfo to get mean ; see To_Refactor for example 
@@ -665,8 +712,9 @@ def main():
 
                 # remove some of the unneeded files
                 if not debug:
-                    os.remove(xyz_filename)
-                    os.remove(median_xyz_filename)
+                    for file in ('.'):
+                        if file.endswith('xyz') or file.endswith('.cpt') or file.endswith('.ps'):
+                            os.remove(file)
 
             # end of loop over levels 
 

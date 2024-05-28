@@ -102,7 +102,10 @@ def main():
         print(f"{now()} Verbose is not set in config file, using defaults (probably verbose=False)")
         verbose=False
 
-    if 'procs' in control_d:
+    if sys.argv[2]: # Prescribe procs from 2nd argument in command line. note, if removing this, also remove the 'if name==__main__' thing back to 2 args
+        procs = int(sys.argv[2])
+        print(f'Number of processes prescribed from command line: {procs}')
+    elif 'procs' in control_d:
         procs = control_d['procs']
     else:
         print(f"{now()} Number of processors for parallel computing is not set. Will use 2 processors for now.)")
@@ -850,6 +853,54 @@ def levels_parallel(varsList):
     else:
         print(f'{now()} Spherical interpolator worked succesfully')
 
+    # Produce a grid showing deviation from average
+    if control_d[s].get('deviation'):
+        print(field_slice)
+        ave = np.median(field_slice)
+        print(ave)
+        field_slice_dev = field_slice - ave
+        print(field_slice_dev)
+
+        xyz_filename_dev = 'deviation_' + datafile + '_' + field_name + '_t' + str(age_Ma_storing)+ '_' + str(depth) + '.xyz'
+        # create the xyz data
+        xyz_data_dev = np.column_stack( (lon, lat, field_slice_dev) )
+        np.savetxt( xyz_filename_dev, xyz_data_dev, fmt='%f %f %f' )
+
+        # create the median file 
+        median_xyz_filename_dev = xyz_filename_dev.rstrip('xyz') + 'median.xyz'
+
+        cmd = xyz_filename_dev + ' -I' + str(blockmedian_I) + ' -R' + grid_R
+        Core_isoGMT.callgmt( 'blockmedian', cmd, '', '>', median_xyz_filename_dev )
+        
+        # create the grid
+        grid_filename_dev = xyz_filename_dev.rstrip('xyz') + 'nc'
+
+        cmd = median_xyz_filename_dev + ' -I' + str(surface_I) + ' -R' + grid_R 
+        if 'Ll' in control_d[s]:
+            cmd += ' -Ll' + str(control_d[s]['Ll'])
+        if 'Lu' in control_d[s]:
+            cmd += ' -Lu' + str(control_d[s]['Lu'])
+        if 'T' in control_d[s]:
+            cmd += ' -T' + str(control_d[s]['T'])
+
+        #opt_a = 
+        try:
+            print(f'{now()} Trying the spherical interpolator')
+            Core_isoGMT.callgmt( 'sphinterpolate', cmd, '', '', ' -G' + grid_filename_dev )
+        except:
+            print(f'{now()} Spherical interpolator unsuccesful. Using gmt surface instead. This may cause some issues around the poles')
+            Core_isoGMT.callgmt( 'surface', cmd, '', '', ' -G' + grid_filename_dev )
+        else:
+            print(f'{now()} Spherical interpolator worked succesfully')
+
+        dev_dir_name = f'{field_name}_deviation'
+        dev_grid_dir=f'{datafile}/{dev_dir_name}/{age_Ma_storing}'
+        os.makedirs(f'{dev_grid_dir}', exist_ok=True)
+
+        if os.path.isfile(f'{dev_grid_dir}/{grid_filename_dev}'):
+            os.remove(f'{dev_grid_dir}/{grid_filename_dev}')
+        shutil.move(grid_filename_dev, f'{dev_grid_dir}')
+
     ### Jono- uncomment below to produce plots
     if 'debug' in control_d:
         # label the variables
@@ -866,12 +917,6 @@ def levels_parallel(varsList):
 
         dim_dir_name = f'{field_name}_dimensional'
 
-        # # Add dimensionalised grid to its own folder
-        # os.makedirs(f'{dim_dir_name}/{age_Ma}', exist_ok=True)
-
-        # if os.path.isfile(f'{dim_dir_name}/{age_Ma}/{dim_grid_name}'):
-        #     os.remove(f'{dim_dir_name}/{age_Ma}/{dim_grid_name}')
-        # shutil.move(dim_grid_name, f'{dim_dir_name}/{age_Ma}')
 
     #     # FIXME: for dynamic topo remove  mean 
     #     # grdinfo to get mean ; see To_Refactor for example 
@@ -1134,7 +1179,7 @@ if __name__ == "__main__":
     # print ( str(sys.version_info) ) 
 
     # check for script called wih no arguments
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         usage()
         sys.exit(-1)
 
