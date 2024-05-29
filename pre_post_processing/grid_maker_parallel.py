@@ -102,14 +102,14 @@ def main():
         print(f"{now()} Verbose is not set in config file, using defaults (probably verbose=False)")
         verbose=False
 
-    if sys.argv[2]: # Prescribe procs from 2nd argument in command line. note, if removing this, also remove the 'if name==__main__' thing back to 2 args
+    if len(sys.argv) > 2: # Prescribe procs from 2nd argument in command line. note, if removing this, also remove the 'if name==__main__' thing back to 2 args
         procs = int(sys.argv[2])
         print(f'Number of processes prescribed from command line: {procs}')
     elif 'procs' in control_d:
         procs = control_d['procs']
     else:
         print(f"{now()} Number of processors for parallel computing is not set. Will use 2 processors for now.)")
-        procs = 2
+        procs = 1
 
     # Adjust verbose settings for all other functions- can be manually adjusted if you want to mix and match 
     Core_Util.verbose = verbose 
@@ -203,32 +203,24 @@ def main():
     varList = []
     for tt, time in enumerate( time_spec_d['time_list'] ):
         varList.append((tt,time,master_d, control_d, nproc_surf, datadir, datafile, level_spec_d, lon, lat, grid_list, depth_list, nodez, debug, pid_file))
-    # with Pool() as p:
-    #     p.map(times_parallel,varList)
-    #     p.close()
-    #     p.join()
 
-    batches = divmod(len(time_spec_d['time_list']), procs)
+    # Multiprocessing of times with old-style batching - specify number of processes with 'procs' in cfg or as an argument on command line
+    batches = divmod(len(time_spec_d['time_list']), procs) # Return number of batches and the remainder
 
-    for i in range(batches[0] + 1):
-        if i == batches[0]:
-            processes = [None] * batches[1]
+    for i in range(batches[0] + 1): # Loop over the number of batches
+        if i == batches[0] and procs < len(time_spec_d['time_list']): # If we're at the last batch If we're at the last batch or skip if procs is more than times (meaning all was done in first batch)
+            processes = [None] * batches[1] # Batch size of remainder
         else:
-            processes = [None] * procs
-        for j in range(len(processes)):
-            k = (procs*i) + j
+            processes = [None] * procs # Batch size specified by procs
+
+        for j in range(len(processes)): # Send each process of batch to a child process
+            k = (procs*i) + j # Total index count of all times that have been sent out across all batches
             processes[j] = Process(target=times_parallel, args=(varList[k],))
             processes[j].start()
 
         for j in range(len(processes)):
-            print(f'################ {processes}')
+            # print(f'################ {processes}')
             processes[j].join()
-
-            # end of loop over levels 
-
-        # end of loop over sections
-
-    # end of loop over times
 
 def times_parallel(varsList):
     tt = varsList[0]
@@ -470,272 +462,21 @@ def times_parallel(varsList):
        
         #
         # Loop over levels 
+
         levels = enumerate( level_spec_d['list'] )
         varList = []
         for level in levels:
             varList.append(level + (tt, ss, s, timestep, age_Ma, runtime_Myr, field_name, field_data, age_Ma_storing, lon, lat, grid_R, grid_list))
 
-        with Pool() as p:
-            p.map(levels_parallel, varList)
-            p.close()
-            p.join()
-        #
-        # for ll, level in enumerate( level_spec_d['list'] ) :
-        #     print( now(), 'grid_maker.py: Processing level = ', level) 
-
-        #     # ensure level is an int value 
-        #     level = int(level)
-        #     depth = int(depth_list[level])
-        #     # pad the depth value 
-        #     #depth = '%04d' % depth
-        #     depth=str(depth)
-        #     print( now(), '------------------------------------------------------------------------------')
-        #     print( now(), 'grid_maker.py: tt,ss,ll = ', tt, ',', ss, ',', ll, ';')
-        #     print( now(), 'grid_maker.py: summary for', s, ': timestep =', timestep, '; age =', age_Ma, '; runtime_Myr =', runtime_Myr, '; level =', level, '; depth =', depth, ' km; field_name =', field_name)
-        #     print( now(), '------------------------------------------------------------------------------')
-
-
-        #     if field_name.startswith('vertical_'):
-        #         # perform a z slice for citcom data 
-        #         field_slice = field_data[level::nodez] # FIXME : how to get a v slice 
-        #        #xyz_filename = datafile + '-' + field_name + '-' + str(age_Ma_storing) + 'Ma-' + str(depth) + 'km.xyz'
-        #         xyz_filename = datafile + '_' + field_name + '_t' + str(age_Ma_storing)+ '_' + str(depth) + '.xyz'
-
-
-        #     else:
-        #         # perform a z slice for citcom data 
-        #         field_slice = field_data[level::nodez]
-        #         #xyz_filename = datafile + '-' + field_name + '-' + str(timestep) + '-' + str(depth) + '.xyz'
-        #         #xyz_filename = datafile + '-' + field_name + '-' + str(age_Ma_storing) + 'Ma-' + str(depth) + 'km.xyz'
-        #         xyz_filename = datafile + '_' + field_name + '_t' + str(age_Ma_storing)+ '_' + str(depth) + '.xyz'
-
-        #     print( now(), 'grid_maker.py: xyz_filename =', xyz_filename)
-            
-        #     if field_name == 'visc': field_slice = np.log10( field_slice )
-
-        #     print( now(), 'grid_maker.py: type(field_slice) = ', type(field_slice) )
-        #     print( now(), 'grid_maker.py:  len(field_slice) = ', len(field_slice) )
-        #     print( now() )
-
-
-        #     # create the xyz data
-        #     xyz_data = np.column_stack( (lon, lat, field_slice) )
-        #     np.savetxt( xyz_filename, xyz_data, fmt='%f %f %f' )
-
-        #     #print( now(), 'grid_maker.py: type(xyz_data) = ', type(xyz_data) )
-        #     #print( now(), 'grid_maker.py:  len(xyz_data) = ', len(xyz_data) )
-        #     #print( now() )
-
-        #     # recast the slice 
-        #     #fs = np.array( field_slice )  
-        #     #fs.shape = ( len(lat), len(lon) )
-        #     #print( now(), 'grid_maker.py: type(fs) = ', type(field_slice) )
-        #     #print( now(), 'grid_maker.py:  len(fs) = ', len(field_slice) )
-        #     #print( now() )
-
-        #     # check for a grid_R 
-        #     if 'R' in control_d[s] :
-        #         grid_R = control_d[s]['R']
-
-        #     # create the median file 
-        #     median_xyz_filename = xyz_filename.rstrip('xyz') + 'median.xyz'
-
-        #     blockmedian_I = control_d[s].get('blockmedian_I', '0.5')
-        #     cmd = xyz_filename + ' -I' + str(blockmedian_I) + ' -R' + grid_R
-
-        #     Core_isoGMT.callgmt( 'blockmedian', cmd, '', '>', median_xyz_filename )
-
-        #     # get a T value for median file 
-        #     if not 'Ll' in control_d[s] or not 'Lu' in control_d[s]:
-        #         T = Core_isoGMT.get_T_from_minmax( median_xyz_filename )
-        #     else:
-        #         dt = (control_d[s]['Lu']-control_d[s]['Ll'])/10
-        #         T = '-T' + str(control_d[s]['Ll']) + '/'
-        #         T += str(control_d[s]['Lu']) + '/' + str(dt)
-
-        #     print( now(), 'grid_maker.py: T =', T)
-
-            
-        #     # create the grid
-        #     grid_filename = xyz_filename.rstrip('xyz') + 'nc'
-
-        #     surface_I = control_d[s].get('surface_I', '0.25')
-        #     cmd = median_xyz_filename + ' -I' + str(surface_I) + ' -R' + grid_R 
-
-        #     if 'Ll' in control_d[s]:
-        #         cmd += ' -Ll' + str(control_d[s]['Ll'])
-        #     if 'Lu' in control_d[s]:
-        #         cmd += ' -Lu' + str(control_d[s]['Lu'])
-        #     if 'T' in control_d[s]:
-        #         cmd += ' -T' + str(control_d[s]['T'])
-
-        #     #opt_a = 
-        #     try:
-        #         print(f'{now()} Trying the spherical interpolator')
-        #         Core_isoGMT.callgmt( 'sphinterpolate', cmd, '', '', ' -G' + grid_filename )
-        #     except:
-        #         print(f'{now()} Spherical interpolator unsuccesful. Using gmt surface instead. This may cause some issues around the poles')
-        #         Core_isoGMT.callgmt( 'surface', cmd, '', '', ' -G' + grid_filename )
-        #     else:
-        #         print(f'{now()} Spherical interpolator worked succesfully')
-
-        #     ### Jono- uncomment below to produce plots
-        #     if debug:
-        #         # label the variables
-                
-        #         # −Dxname/yname/zname/scale/offset/title/remark
-        #         cmd = grid_filename + ' -D/=/=/' + str(field_name) + '/=/=/' + str(field_name) + '/' + str(field_name)
-        #         Core_isoGMT.callgmt( 'grdedit', cmd, '', '', '')
-            
-        #     # Dimensionalize grid   
-        #     if control_d[s].get('dimensional'):
-        #         print( now(), 'grid_maker.py: dimensional = ', control_d[s]['dimensional'])
-        #         dim_grid_name = grid_filename.replace('.nc', '_dimensional.nc')
-        #         Core_Citcom.dimensionalize_grid(pid_file, field_name, grid_filename, dim_grid_name)
-
-        #         dim_dir_name = f'{field_name}_dimensional'
-
-        #         # # Add dimensionalised grid to its own folder
-        #         # os.makedirs(f'{dim_dir_name}/{age_Ma}', exist_ok=True)
-
-        #         # if os.path.isfile(f'{dim_dir_name}/{age_Ma}/{dim_grid_name}'):
-        #         #     os.remove(f'{dim_dir_name}/{age_Ma}/{dim_grid_name}')
-        #         # shutil.move(dim_grid_name, f'{dim_dir_name}/{age_Ma}')
-
-        #     #     # FIXME: for dynamic topo remove  mean 
-        #     #     # grdinfo to get mean ; see To_Refactor for example 
-
-        #     # save this grid and its age in a list
-        #     if control_d[s].get('dimensional'):
-        #         grid_list.append( (dim_grid_name, age_Ma) )
-        #     else: 
-        #         grid_list.append( (grid_filename, age_Ma) )
-
-
-        #     # Optional step to transform grid to plate frame
-        #     if 'make_plate_frame_grid' in control_d :
-        #         cmd = 'frame_change_pygplates.py %(age_Ma)s %(grid_filename)s %(grid_R)s' % vars()
-        #         print(now(), 'grid_maker.py: cmd =', cmd)
-        #         os.system(cmd)
-
-
-        #     # Assoicate this grid with GPlates exported line data in .xy format:
-        #     # compute age value 
-        #     age_float = 0.0
-
-        #     # time_list values for citcom data uses timesteps; get age 
-        #     time_triple = Core_Citcom.get_time_triple_from_timestep(master_d['time_d']['triples'], timestep)
-        #     age_float = time_triple[1]
-
-        #     if debug:
-        #         # truncate to nearest int and make a string for the gplates .xy file name 
-        #         if age_float < 0: age_float = 0.0
-        #         xy_path = master_d['geoframe_d']['gplates_line_dir']
-        #         #xy_filename = xy_path + '/' + 'topology_platepolygons_' + str(int(age_float)) + '.00Ma.xy'
-        #         xy_filename = xy_path + '/' + 'topology_platepolygons_' + str(int(age_Ma)) + '.00Ma.xy'
-        #         print( now(), 'grid_maker.py: xy_filename = ', xy_filename)
-
-
-        #         # Make a plot of the grids
-        #         J = 'X5/3' #'R0/6'
-        #         #J = 'M5/3'
-        #         if 'J' in control_d[s] :
-        #             J = control_d[s]['J']
-
-        #         C = 'polar'
-        #         if 'C' in control_d[s] :
-        #             C = control_d[s]['C']
-            
-        #         # citcoms 
-        #         # plot non-dimensional grid
-        #         Core_isoGMT.plot_grid( grid_filename, xy_filename, grid_R, T, J, C)
-
-        #         # also plot dimensional grid 
-        #         if control_d[s].get('dimensional') :
-        #             print( now(), 'grid_maker.py: plotting dimensional = ', control_d[s]['dimensional'])
-        #             dim_grid_name = grid_filename.replace('.nc', '_dimensional.nc')
-        #             T = Core_isoGMT.get_T_from_grdinfo( dim_grid_name )
-        #             Core_isoGMT.plot_grid( dim_grid_name, xy_filename, grid_R, T, J)
-
-        #     # plot plate frame grid 
-        #     if 'make_plate_frame_grid' in control_d :
-        #         plateframe_grid_name = grid_filename.replace('.nc', '-plateframe.nc')
-        #         xy_filename = ''
-        #         xy_path = master_d['geoframe_d']['gplates_line_dir']
-        #         # present day plate outlines : use '0' 
-        #         xy_filename = xy_path + '/' + 'topology_platepolygons_0.00Ma.xy' 
-        #         print( now(), 'grid_maker.py: xy_filename = ', xy_filename)
-
-        #         T = Core_isoGMT.get_T_from_grdinfo( plateframe_grid_name )
-        #         print( now(), 'grid_maker.py: T =', T)
-        #         Core_isoGMT.plot_grid( plateframe_grid_name, xy_filename, grid_R, T, J)
-        #     # end of plotting 
-
-        #     # For normal (non-debug) mode, the produced grids go into neat folders
-        #     # JONO - create field and age directories if needed. Done here
-        #     # os.makedirs(field_name, exist_ok=True)
-        #     grid_dir=f'{datafile}/{field_name}/{age_Ma_storing}'
-        #     os.makedirs(grid_dir, exist_ok=True)
-            
-        #     if os.path.isfile(f'{grid_dir}/{grid_filename}'):
-        #         os.remove(f'{grid_dir}/{grid_filename}')
-        #     shutil.move(grid_filename, f'{grid_dir}')
-
-        #     # Add dimensionalised grid to its own folder
-        #     if control_d[s].get('dimensional'):
-        #         dim_grid_dir=f'{datafile}/{dim_dir_name}/{age_Ma_storing}'
-        #         os.makedirs(f'{dim_grid_dir}', exist_ok=True)
-
-        #         if os.path.isfile(f'{dim_grid_dir}/{dim_grid_name}'):
-        #             os.remove(f'{dim_grid_dir}/{dim_grid_name}')
-        #         shutil.move(dim_grid_name, f'{dim_grid_dir}')
-
-        #     if debug:
-        #         if os.path.isfile(f'{grid_dir}/{xyz_filename}'):
-        #             os.remove(f'{grid_dir}/{xyz_filename}')
-        #         shutil.move(xyz_filename, f'{grid_dir}')
-
-        #         if os.path.isfile(f'{grid_dir}/{median_xyz_filename}'):
-        #             os.remove(f'{grid_dir}/{median_xyz_filename}')
-        #         shutil.move(median_xyz_filename, f'{grid_dir}')
-
-        #         ps = grid_filename.rstrip('.nc') + '.ps'
-        #         if os.path.isfile(f'{grid_dir}/{ps}'):
-        #             os.remove(f'{grid_dir}/{ps}')
-        #         shutil.move(ps, f'{grid_dir}')  
-
-        #         png = grid_filename.rstrip('.nc') + '.png'
-        #         if os.path.isfile(f'{grid_dir}/{png}'):
-        #             os.remove(f'{grid_dir}/{png}')
-        #         shutil.move(png, f'{grid_dir}')                                            
-
-        #         cpt = grid_filename.rstrip('.nc') + '.cpt'
-        #         if os.path.isfile(f'{grid_dir}/{cpt}'):
-        #             os.remove(f'{grid_dir}/{cpt}')
-        #         shutil.move(cpt, f'{grid_dir}')  
-
-        #         if control_d[s].get('dimensional'):
-        #             ps = dim_grid_name.rstrip('.nc') + '.ps'
-        #             if os.path.isfile(f'{dim_grid_dir}/{ps}'):
-        #                 os.remove(f'{dim_grid_dir}/{ps}')
-        #             shutil.move(ps, f'{dim_grid_dir}')  
-
-        #             png = dim_grid_name.rstrip('.nc') + '.png'
-        #             if os.path.isfile(f'{dim_grid_dir}/{png}'):
-        #                 os.remove(f'{dim_grid_dir}/{png}')
-        #             shutil.move(png, f'{dim_grid_dir}')                                            
-
-        #             cpt = dim_grid_name.rstrip('.nc') + '.cpt'
-        #             if os.path.isfile(f'{dim_grid_dir}/{cpt}'):
-        #                 os.remove(f'{dim_grid_dir}/{cpt}')
-        #             shutil.move(cpt, f'{dim_grid_dir}') 
-
-
-        #     # remove some of the unneeded files
-        #     if not debug:
-        #         os.remove(xyz_filename)
-        #         os.remove(median_xyz_filename)
-    
+        if control_d[s]['multiprocess_depths']:
+            with Pool() as p:
+                p.map(levels_parallel, varList)
+                p.close()
+                p.join()
+        else:
+            print('Looping over depths one at a time')
+            for var in varList:
+                levels_parallel(var)
 
 def levels_parallel(varsList):
     ll = varsList[0]
@@ -855,11 +596,8 @@ def levels_parallel(varsList):
 
     # Produce a grid showing deviation from average
     if control_d[s].get('deviation'):
-        print(field_slice)
         ave = np.median(field_slice)
-        print(ave)
         field_slice_dev = field_slice - ave
-        print(field_slice_dev)
 
         xyz_filename_dev = 'deviation_' + datafile + '_' + field_name + '_t' + str(age_Ma_storing)+ '_' + str(depth) + '.xyz'
         # create the xyz data
@@ -883,7 +621,6 @@ def levels_parallel(varsList):
         if 'T' in control_d[s]:
             cmd += ' -T' + str(control_d[s]['T'])
 
-        #opt_a = 
         try:
             print(f'{now()} Trying the spherical interpolator')
             Core_isoGMT.callgmt( 'sphinterpolate', cmd, '', '', ' -G' + grid_filename_dev )
@@ -895,11 +632,16 @@ def levels_parallel(varsList):
 
         dev_dir_name = f'{field_name}_deviation'
         dev_grid_dir=f'{datafile}/{dev_dir_name}/{age_Ma_storing}'
-        os.makedirs(f'{dev_grid_dir}', exist_ok=True)
 
+        os.makedirs(f'{dev_grid_dir}', exist_ok=True)
         if os.path.isfile(f'{dev_grid_dir}/{grid_filename_dev}'):
             os.remove(f'{dev_grid_dir}/{grid_filename_dev}')
         shutil.move(grid_filename_dev, f'{dev_grid_dir}')
+
+        if not 'debug' in control_d:
+            os.remove(xyz_filename_dev)
+            os.remove(median_xyz_filename_dev
+                )
 
     ### Jono- uncomment below to produce plots
     if 'debug' in control_d:
@@ -916,10 +658,6 @@ def levels_parallel(varsList):
         Core_Citcom.dimensionalize_grid(pid_file, field_name, grid_filename, dim_grid_name)
 
         dim_dir_name = f'{field_name}_dimensional'
-
-
-    #     # FIXME: for dynamic topo remove  mean 
-    #     # grdinfo to get mean ; see To_Refactor for example 
 
     # save this grid and its age in a list
     if control_d[s].get('dimensional'):
@@ -1179,7 +917,7 @@ if __name__ == "__main__":
     # print ( str(sys.version_info) ) 
 
     # check for script called wih no arguments
-    if len(sys.argv) != 3:
+    if len(sys.argv) > 3:
         usage()
         sys.exit(-1)
 
