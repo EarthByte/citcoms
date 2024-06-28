@@ -207,14 +207,15 @@ def main():
     # Multiprocessing of times with old-style batching - specify number of processes with 'procs' in cfg or as an argument on command line
     batches = divmod(len(time_spec_d['time_list']), procs) # Return number of batches and the remainder
 
-    for i in range(batches[0] + 1): # Loop over the number of batches
-        if i == batches[0] and procs < len(time_spec_d['time_list']): # If we're at the last batch If we're at the last batch or skip if procs is more than times (meaning all was done in first batch)
+    for i in range(batches[0]+1): # Loop over the number of batches
+        if i == batches[0]: # If we're at the last batch or skip if procs is more than times (meaning all was done in first batch)
             processes = [None] * batches[1] # Batch size of remainder
         else:
             processes = [None] * procs # Batch size specified by procs
 
         for j in range(len(processes)): # Send each process of batch to a child process
             k = (procs*i) + j # Total index count of all times that have been sent out across all batches
+            print(f'##### {k} #####')
             processes[j] = Process(target=times_parallel, args=(varList[k],))
             processes[j].start()
 
@@ -468,15 +469,24 @@ def times_parallel(varsList):
         for level in levels:
             varList.append(level + (tt, ss, s, timestep, age_Ma, runtime_Myr, field_name, field_data, age_Ma_storing, lon, lat, grid_R, grid_list))
 
-        if control_d[s]['multiprocess_depths']:
-            with Pool() as p:
-                p.map(levels_parallel, varList)
-                p.close()
-                p.join()
-        else:
+        # Loop over levels in parralel only if multiprocess_depths is set to true
+        try:
+            if control_d[s]['multiprocess_depths']:
+                with Pool() as p:
+                    p.map(levels_parallel, varList)
+                    p.close()
+                    p.join()
+            # If set to anything other than true, loop over levels conventionallys
+            else:
+                print('Looping over depths one at a time')
+                for level in varList:
+                    levels_parallel(level)
+        except KeyError:
+            # Loop over levels conventioanlly if multiprocess depths doesn't exist at all
             print('Looping over depths one at a time')
-            for var in varList:
-                levels_parallel(var)
+            for level in varList:
+                levels_parallel(level)
+
 
 def levels_parallel(varsList):
     ll = varsList[0]
