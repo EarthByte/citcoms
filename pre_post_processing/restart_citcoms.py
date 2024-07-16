@@ -301,7 +301,11 @@ def create_restart_run_cfg( master_run_pid_d, control_d, rs_replace_d, rs_dir, r
         elif val == 'COMMENT' :
 
             # double check this param has a orginal value in the restart_run_cfg_d
-            if not param_name in restart_run_cfg_d[section_name]:
+            
+            # if not param_name in restart_run_cfg_d[section_name]:
+            try:
+                restart_run_cfg_d[section_name]
+            except KeyError:
                 continue # the parm name was not in the master run cfg ; skip it
 
             # else get master run cfg value
@@ -328,8 +332,10 @@ def create_restart_run_cfg( master_run_pid_d, control_d, rs_replace_d, rs_dir, r
 
         
            # Check in the PID copy if a parameter has already been defined rs_replace_d. if true it will be commented - RC
-           
-            if not param_name in restart_run_cfg_d[section_name]:
+           # if not param_name in restart_run_cfg_d[section_name]:
+            try:
+                restart_run_cfg_d[section_name]
+            except KeyError:
             
                 # this is a regular value, update restart_run_cfg_d
                 restart_run_cfg_d[param_name] = val

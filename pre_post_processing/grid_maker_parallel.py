@@ -208,7 +208,7 @@ def main():
     batches = divmod(len(time_spec_d['time_list']), procs) # Return number of batches and the remainder
 
     for i in range(batches[0]+1): # Loop over the number of batches
-        if i == batches[0]: # If we're at the last batch or skip if procs is more than times (meaning all was done in first batch)
+        if i == batches[0]: # If we're at the last (or only) batch 
             processes = [None] * batches[1] # Batch size of remainder
         else:
             processes = [None] * procs # Batch size specified by procs
