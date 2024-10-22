@@ -61,21 +61,21 @@ See the example config.cfg file for more info.
     sys.exit()
 #=====================================================================
 #=====================================================================
-def initialise_variables(configFile=sys.argv[1],):
+def initialise_variables(configFile=sys.argv[1],verbose=False):
     # get the .cfg file as a dictionary
     control_d = Core_Util.parse_configuration_file( configFile, False, False )
-
+    
     print(f"{now()} Config file dictionary:")
-    Core_Util.tree_print( control_d )
+    if verbose: Core_Util.tree_print( control_d )
 
     # set the pid file 
     pid_file = control_d['pid_file']
     
     # get the master dictionary and define aliases
-    master_d = Core_Citcom.get_all_pid_data( pid_file )
+    master_d = Core_Citcom.get_all_pid_data( pid_file, verbose=verbose )
     coor_d = master_d['coor_d']
     pid_d = master_d['pid_d']
-
+    
     # set up working variables
     # get basic info about the model run
     datadir       = pid_d['datadir']
@@ -93,7 +93,7 @@ def main():
     print( now(), 'grid_maker.py')
 
     control_d, pid_file, master_d, coor_d, pid_d, datadir, datafile, start_age, output_format, depth_list, nodez, nproc_surf = initialise_variables()
-
+    
     # Set the verbose settings
     if 'verbose' in control_d:
         print(f"{now()} Verbose is set to {control_d['verbose']} in the config file")
@@ -142,12 +142,12 @@ def main():
     else :
         time_spec_d = Core_Citcom.get_time_spec_dictionary(control_d['time_spec'])
     print ( now(), 'grid_maker.py: time_spec_d = ')
-    Core_Util.tree_print( time_spec_d )
+    if verbose: Core_Util.tree_print( time_spec_d )
 
     # levels to process 
     level_spec_d = Core_Util.get_spec_dictionary( control_d['level_spec'] )
     print ( now(), 'grid_maker.py: level_spec_d = ')
-    Core_Util.tree_print( level_spec_d )
+    if verbose: Core_Util.tree_print( level_spec_d )
 
     # Get coordinate data 
     lon = []
@@ -197,28 +197,84 @@ def main():
     print(now(), '=========================================================================')
     print(now(), 'grid_maker.py: Main looping, first over times, then sections, then levels')
     print(now(), '=========================================================================')
-
+    
     # Loop over times
-    # for tt, time in enumerate( time_spec_d['time_list'] ) :
+    # Only append ages to var list that match ages in the citcoms data (avoids double ups)
+    # Note: this can be cleaned up a little - it's essentially been copied from below
     varList = []
     for tt, time in enumerate( time_spec_d['time_list'] ):
-        varList.append((tt,time,master_d, control_d, nproc_surf, datadir, datafile, level_spec_d, lon, lat, grid_list, depth_list, nodez, debug, pid_file))
+        print(f'tt:{tt}')
+        print(time)
+
+        if 'Ma' in time:
+        
+            # strip off units and make a number
+            time = float( time.replace('Ma', '') )
+
+            # determine what time steps are available for this age 
+            # NOTE: 'temp' is requried to set which output files to check 
+            found_d = Core_Citcom.find_available_timestep_from_age( master_d, 'temp', time )
+
+            # print( now(), 'grid_maker.py: WARNING: Adjusting times to match available data:')
+            # print( now(), '  request_age =', found_d['request_age'], '; request_timestep =', found_d['request_timestep'], '; request_runtime =', found_d['request_runtime'])
+            # print( now(), '  found_age =', found_d['found_age'], '; found_timestep =', found_d['found_timestep'], '; found_runtime =', found_d['found_runtime'])
+
+            # set variables for subsequent loops
+            timestep = found_d['found_timestep']
+            runtime_Myr = found_d['found_runtime']
+
+            # convert the found age to an int
+            age_Ma = int(np.around( found_d['found_age'] ) )
+
+            # save age number for grids storage
+            age_Ma_storing=age_Ma
+             
+            age_Ma = '%03d' % age_Ma
+
+        else:
+
+            time = float( time ) 
+             
+            # determine what time steps are available for this timestep 
+            # NOTE: 'temp' is requried to set which output files to check 
+
+            found_d = Core_Citcom.find_available_timestep_from_timestep( master_d, 'temp', time )
+
+            print( now(), 'grid_maker.py: WARNING: Adjusting times to match available data:')
+            print( now(), '  request_age =', found_d['request_age'], '; request_timestep =', found_d['request_timestep'], '; request_runtime =', found_d['request_runtime'])
+            print( now(), '  found_age =', found_d['found_age'], '; found_timestep =', found_d['found_timestep'], '; found_runtime =', found_d['found_runtime'])
+
+            # set variables for subsequent loops
+            timestep = found_d['found_timestep']
+            runtime_Myr = found_d['found_runtime']
+
+            # convert the found age to an int
+            age_Ma = int(np.around( found_d['found_age'] ) )
+            
+            # make a string and pad with zeros 
+            #age_Ma = '%03d' % age_Ma
+            age_Ma = str(age_Ma)
+
+        print(age_Ma)
+        print('\n')
+        if int(time) == int(age_Ma): # Think about changing this so it chooses the nearest age, but still doesn't double up
+            varList.append((tt,f'{time}Ma',master_d, control_d, nproc_surf, datadir, datafile, level_spec_d, lon, lat, grid_list, depth_list, nodez, debug, pid_file, verbose))
+        else:
+            continue
 
     # Multiprocessing of times with old-style batching - specify number of processes with 'procs' in cfg or as an argument on command line
-    batches = divmod(len(time_spec_d['time_list']), procs) # Return number of batches and the remainder
-
+    batches = divmod(len(varList), procs) # Return number of batches and the remainder
     for i in range(batches[0]+1): # Loop over the number of batches
         if i == batches[0]: # If we're at the last (or only) batch 
             processes = [None] * batches[1] # Batch size of remainder
         else:
             processes = [None] * procs # Batch size specified by procs
-
+        print(processes)
         for j in range(len(processes)): # Send each process of batch to a child process
             k = (procs*i) + j # Total index count of all times that have been sent out across all batches
             print(f'##### {k} #####')
             processes[j] = Process(target=times_parallel, args=(varList[k],))
             processes[j].start()
-
         for j in range(len(processes)):
             # print(f'################ {processes}')
             processes[j].join()
@@ -239,6 +295,7 @@ def times_parallel(varsList):
     nodez = varsList[12]
     debug = varsList[13]
     pid_file = varsList[14]
+    verbose = varsList[15]
     print( now(), 'grid_maker.py: Processing time = ', time) 
     # print( now(), 'grid_maker.py: Processing time = ', tt) 
     if 'Ma' in time:
@@ -249,6 +306,7 @@ def times_parallel(varsList):
         # determine what time steps are available for this age 
         # NOTE: 'temp' is requried to set which output files to check 
         found_d = Core_Citcom.find_available_timestep_from_age( master_d, 'temp', time )
+
         print( now(), 'grid_maker.py: WARNING: Adjusting times to match available data:')
         print( now(), '  request_age =', found_d['request_age'], '; request_timestep =', found_d['request_timestep'], '; request_runtime =', found_d['request_runtime'])
         print( now(), '  found_age =', found_d['found_age'], '; found_timestep =', found_d['found_timestep'], '; found_runtime =', found_d['found_runtime'])
@@ -467,7 +525,7 @@ def times_parallel(varsList):
         levels = enumerate( level_spec_d['list'] )
         varList = []
         for level in levels:
-            varList.append(level + (tt, ss, s, timestep, age_Ma, runtime_Myr, field_name, field_data, age_Ma_storing, lon, lat, grid_R, grid_list))
+            varList.append(level + (tt, ss, s, timestep, age_Ma, runtime_Myr, field_name, field_data, age_Ma_storing, lon, lat, grid_R, grid_list, verbose))
 
         # Loop over levels in parralel only if multiprocess_depths is set to true
         try:
@@ -476,7 +534,7 @@ def times_parallel(varsList):
                     p.map(levels_parallel, varList)
                     p.close()
                     p.join()
-            # If set to anything other than true, loop over levels conventionallys
+            # If set to anything other than true, loop over levels conventionally
             else:
                 print('Looping over depths one at a time')
                 for level in varList:
@@ -504,6 +562,7 @@ def levels_parallel(varsList):
     lat = varsList[12]
     grid_R = varsList[13]
     grid_list = varsList[14]
+    verbose = varsList[15]
     print( now(), 'grid_maker.py: Processing level = ', level) 
 
     control_d, pid_file, master_d, coor_d, pid_d, datadir, datafile, start_age, output_format, depth_list, nodez, nproc_surf = initialise_variables()
@@ -665,7 +724,7 @@ def levels_parallel(varsList):
     if control_d[s].get('dimensional'):
         print( now(), 'grid_maker.py: dimensional = ', control_d[s]['dimensional'])
         dim_grid_name = grid_filename.replace('.nc', '_dimensional.nc')
-        Core_Citcom.dimensionalize_grid(pid_file, field_name, grid_filename, dim_grid_name)
+        Core_Citcom.dimensionalize_grid(pid_file, field_name, grid_filename, dim_grid_name, verbose=verbose)
 
         dim_dir_name = f'{field_name}_dimensional'
 
@@ -674,7 +733,6 @@ def levels_parallel(varsList):
         grid_list.append( (dim_grid_name, age_Ma) )
     else: 
         grid_list.append( (grid_filename, age_Ma) )
-
 
     # Optional step to transform grid to plate frame
     if 'make_plate_frame_grid' in control_d :
@@ -688,7 +746,7 @@ def levels_parallel(varsList):
     age_float = 0.0
 
     # time_list values for citcom data uses timesteps; get age 
-    time_triple = Core_Citcom.get_time_triple_from_timestep(master_d['time_d']['triples'], timestep)
+    time_triple = Core_Citcom.get_time_triple_from_timestep(master_d['time_d']['triples'], timestep, verbose=verbose)
     age_float = time_triple[1]
 
     if 'debug' in control_d:
