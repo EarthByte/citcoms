@@ -1300,7 +1300,7 @@ A time_spec string may be given as:
 #=====================================================================
 #=====================================================================
 #=====================================================================
-def read_citcom_time_file(pid_d):
+def read_citcom_time_file(pid_d, verbose=verbose):
     '''read a citcoms .time file and generate a dictionary of lists of time values:
     time_d['step'] = [list of model time steps]
     time_d['age_Ma'] = [list of reconstruction ages in Ma]
@@ -1494,7 +1494,7 @@ def get_time_triple_from_runtime(triple_list, test_runtime):
 #=====================================================================
 #=====================================================================
 #=====================================================================
-def get_time_triple_from_timestep(triple_list, test_step):
+def get_time_triple_from_timestep(triple_list, test_step, verbose=verbose):
     '''locate and return the time triple for a given model time step '''
 
     # check bounds : NOTE indices
@@ -1679,7 +1679,7 @@ locate the closest available time step data files avaialable for the requested a
 
 #=====================================================================
 #=====================================================================
-def get_all_pid_data( pid_file ):
+def get_all_pid_data( pid_file, verbose=verbose ):
     '''This function generates a set of nested dictionary data 
 holding the Citcom model run data (the pid data), the model time file, 
 the model coordinate data, and, the geoframework default data.
@@ -1702,7 +1702,7 @@ with a set of nested dictionaries, with this structure:
     if verbose: print(Core_Util.now(), 'get_all_pid_data: Step 1: Read the geodynamic framework defaults')
     master_d['geoframe_d'] = Core_Util.parse_geodynamic_framework_defaults()
 
-    # Step 2: read the CitcomS pid file 
+    # Step 2:  read the CitcomS pid file 
     if verbose: print(Core_Util.now(), 'get_all_pid_data: Step 2: Read the CitcomS pid file')
     pid_d = Core_Util.parse_configuration_file( pid_file )
 
@@ -1717,7 +1717,7 @@ with a set of nested dictionaries, with this structure:
     if verbose: print(Core_Util.now(), 'get_all_pid_data: Step 3: Read the time file')
     # this will be None if time file does not exist or cannot be found
     # NOTE: it is up to the client code to handle a missing time file.
-    master_d['time_d'] = read_citcom_time_file( pid_d )
+    master_d['time_d'] = read_citcom_time_file( pid_d,verbose=verbose )
 
     # Step 4: read the coor data
     if verbose: print(Core_Util.now(), 'get_all_pid_data: Step 4: Read the coor data')
@@ -1732,7 +1732,7 @@ with a set of nested dictionaries, with this structure:
     return master_d
 #=====================================================================
 #=====================================================================
-def dimensionalize_grid(pid_file, field_name, in_grid, out_grid) :
+def dimensionalize_grid(pid_file, field_name, in_grid, out_grid, verbose=verbose) :
     '''Using the field_name and the coeficient and constants set in field_to_dimensional_map, dimensionalize in_grid and create out_grid'''
 
     if field_name not in field_to_dimensional_map.keys() :
@@ -1740,7 +1740,7 @@ def dimensionalize_grid(pid_file, field_name, in_grid, out_grid) :
         return 
 
     # populate the map
-    map = populate_field_to_dimensional_map_from_pid( pid_file )
+    map = populate_field_to_dimensional_map_from_pid( pid_file, verbose=verbose )
 
     # get specific data for this field_name
     coef = map[field_name]['coef']
@@ -1751,13 +1751,13 @@ def dimensionalize_grid(pid_file, field_name, in_grid, out_grid) :
     Core_isoGMT.callgmt( 'grdmath', args, '', '=', out_grid )
 #=====================================================================
 #=====================================================================
-def populate_field_to_dimensional_map_from_pid( pid_file ): 
+def populate_field_to_dimensional_map_from_pid( pid_file, verbose=verbose ): 
     '''Set values in the global variable field_to_dimensional_map with specific coef and const values from data in the pid file'''
 
     global field_to_dimensional_map
 
     # get all the pid info 
-    master_d = get_all_pid_data( pid_file )
+    master_d = get_all_pid_data( pid_file,verbose=verbose )
     pid_d = master_d['pid_d']
 
     # extract values from master_d used to set specific coef and const for variables
@@ -1806,7 +1806,7 @@ def populate_field_to_dimensional_map_from_pid( pid_file ):
 
     # show the dict
     if verbose: print(Core_Util.now(), 'populate_field_to_dimensional_map_from_pid(): field_to_dimensional_map =')
-    Core_Util.tree_print(field_to_dimensional_map)
+    if verbose: Core_Util.tree_print(field_to_dimensional_map)
 
     # return a copy of the adjusted map
     return dict( field_to_dimensional_map )
