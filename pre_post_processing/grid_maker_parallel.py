@@ -94,6 +94,11 @@ def main():
 
     control_d, pid_file, master_d, coor_d, pid_d, datadir, datafile, start_age, output_format, depth_list, nodez, nproc_surf = initialise_variables()
     
+    # print(master_d['time_d']['triples'][2])
+    # for t in master_d['time_d']['triples']:
+    #     print(int(t[1]))
+    # sys.exit()
+
     # Set the verbose settings
     if 'verbose' in control_d:
         print(f"{now()} Verbose is set to {control_d['verbose']} in the config file")
@@ -255,8 +260,12 @@ def main():
             #age_Ma = '%03d' % age_Ma
             age_Ma = str(age_Ma)
 
+        print(found_d)
+
+
         print(age_Ma)
         print('\n')
+
         if int(time) == int(age_Ma): # Think about changing this so it chooses the nearest age, but still doesn't double up
             varList.append((tt,f'{time}Ma',master_d, control_d, nproc_surf, datadir, datafile, level_spec_d, lon, lat, grid_list, depth_list, nodez, debug, pid_file, verbose))
         else:
