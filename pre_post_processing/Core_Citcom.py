@@ -1413,25 +1413,25 @@ from the list of tuples: (step, age, runtime) crated from a citcom time file.'''
             return (s,a,r)
 
     # list comprehension to compute the difference between test_age and model ages
-    # NOTE the if a-test_age > 0
-    delta_list = [a-test_age for (s,a,r) in triple_list if a-test_age > 0 ]
+    # JL - removed the below list comprehension as it assumes all times are in order (which doesn't seem to be the case)
+    # delta_list = [a-test_age for (s,a,r) in triple_list if a-test_age > 0 ]
 
-    # get index of, and delta from value to test for previous value
-    prev_i = len(delta_list) - 1
-    prev_delta = delta_list[-1]
+    # JL - delta_list should now be the same length as triples list
+    delta_list = []
+    i=0
+    for (s,a,r) in triple_list:
+        delta_list.append(a-test_age)
 
-    # get index of, and delta from value to test for next value
-    next_i = len(delta_list)
-    next_delta = triple_list[next_i][1] - test_age
+    # Index of closest value to requested time
+    # Not this is getting the absolute closest value which may result in rare edge cases where the same timestep is processed twice
+    i = np.abs(delta_list).argmin()
 
-    # index smallest delta and index into list of tuples
-    if abs(prev_delta) < abs(next_delta) :
-        i = prev_i
-    else: 
-        i = next_i
+    # This is now redundant but keeping it so the temrinal output is consistent
+    prev_i = i-1
+    next_i = i+1
 
-    # FIXME: ?
-    i = prev_i
+    prev_delta=delta_list[prev_i]
+    next_delta=delta_list[next_i]
 
     if verbose:
         print( Core_Util.now(), 'get_time_triple_from_age:', 'prev=', triple_list[prev_i], 'delta=', prev_delta, 'i=', prev_i )
